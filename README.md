@@ -23,3 +23,8 @@ CPU#0
  mip      00000000
  ・・・
 ```
+* disassembly
+```
+// rustfilt requires cargo install rustfilt
+llvm-objdump [project_root]/target/riscv32i-unknown-none-elf/debug/SasaOS | rustfilt
+```
