@@ -1,17 +1,23 @@
 #![no_std]
 #![no_main]
 
+use core::arch::asm;
+
 #[no_mangle]
-#[link_section = ".entry"]
-pub unsafe extern "C" fn _entry() {
+#[link_section = ".boot"]
+pub unsafe extern "C" fn _boot() {
     main();
 }
 #[inline]
 fn main() {
-    let a = 1;
-    let b = 2;
-    let c = a + b;
-
+    let result: i32;
+    unsafe {
+        asm!(
+            "mov {0}, 1",
+            "add {0}, 2",
+            out(reg) result
+        );
+    }
     loop {}
 }
 

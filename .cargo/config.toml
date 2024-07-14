@@ -2,6 +2,10 @@
 target = "riscv32i-unknown-none-elf"
 
 [target.riscv32i-unknown-none-elf]
+linker = "rust-lld"
+rustflags = [
+    "-C", "link-arg=-T./src/kernel.ld",
+]
 runner = """
 qemu-system-riscv32 \
 -machine virt \
