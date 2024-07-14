@@ -1,18 +1,21 @@
-use std::arch::asm;
+#![no_std]
+#![no_main]
 
+#[no_mangle]
+#[link_section = ".entry"]
+pub unsafe extern "C" fn _entry() {
+    main();
+}
+#[inline]
 fn main() {
-    let mut result: u64;
-    let a: u64 = 5;
-    let b: u64 = 3;
+    let a = 1;
+    let b = 2;
+    let c = a + b;
 
-    unsafe {
-        asm!(
-            "add {0}, {1}, {2}",
-            out(reg) result,
-            in(reg) a,
-            in(reg) b
-        );
-    }
+    loop {}
+}
 
-    println!("Result of {} + {} is: {}", a, b, result);
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
 }
