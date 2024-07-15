@@ -7,3 +7,9 @@ extern "C" {
     pub static mut __bss_end: Uint8T;
     pub static mut __stack_top: Uint8T;
 }
+
+#[repr(C)]
+pub struct SbiRet {
+    pub error: isize,
+    pub value: isize,
+}

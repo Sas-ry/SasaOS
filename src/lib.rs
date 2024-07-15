@@ -1,4 +1,4 @@
 #![no_std]
 
-pub mod sbi_call;
+pub mod common_func;
 pub mod types;

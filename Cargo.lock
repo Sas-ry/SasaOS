@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "sasa_os"
+name = "sasa-os"
 version = "0.1.0"
