@@ -1,56 +1,20 @@
 #![no_std]
 #![no_main]
-#![feature(asm)]
 #![feature(naked_functions)]
-#![feature(global_asm)]
 
+mod sbi_call;
+mod types;
 use core::arch::asm;
 use core::arch::global_asm;
+use types::*;
 
-type uint8_t = u8;
-type uint32_t = u32;
-type size_t = uint32_t;
-
-extern "C" {
-    static mut __bss: uint8_t;
-    static mut __bss_end: uint8_t;
-    static mut __stack_top: uint8_t;
-}
-
-#[repr(C)]
-struct SbiRet {
-    error: isize,
-    value: isize,
+#[no_mangle]
+fn putchar(ch: Uint8T) {
+    sbi_call::sbi_call(ch as isize, 0, 0, 0, 0, 0, 0, 1);
 }
 
 #[no_mangle]
-fn sbi_call(arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, fid: isize, eid: isize) -> SbiRet {
-    let error: isize;
-    let value: isize;
-    unsafe {
-        asm!(
-            "ecall",
-            inlateout("a0") arg0 => error,
-            inlateout("a1") arg1 => value,
-            in("a2") arg2,
-            in("a3") arg3,
-            in("a4") arg4,
-            in("a5") arg5,
-            in("a6") fid,
-            in("a7") eid,
-            options(nostack)
-        );
-    }
-    SbiRet { error, value }
-}
-
-#[no_mangle]
-fn putchar(ch: uint8_t) {
-    sbi_call(ch as isize, 0, 0, 0, 0, 0, 0, 1);
-}
-
-#[no_mangle]
-unsafe fn memset(buf: *mut uint8_t, c: uint8_t, n: size_t) -> *mut u8 {
+unsafe fn memset(buf: *mut Uint8T, c: Uint8T, n: SizeT) -> *mut u8 {
     let mut p = buf;
     for _ in 0..n {
         *p = c;
