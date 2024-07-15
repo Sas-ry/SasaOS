@@ -19,14 +19,14 @@ extern "C" {
 
 #[repr(C)]
 struct SbiRet {
-    error: usize,
-    value: usize,
+    error: isize,
+    value: isize,
 }
 
 #[no_mangle]
-fn sbi_call(arg0: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, fid: usize, eid: usize) -> SbiRet {
-    let error: usize;
-    let value: usize;
+fn sbi_call(arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, fid: isize, eid: isize) -> SbiRet {
+    let error: isize;
+    let value: isize;
     unsafe {
         asm!(
             "ecall",
@@ -46,7 +46,7 @@ fn sbi_call(arg0: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg
 
 #[no_mangle]
 fn putchar(ch: uint8_t) {
-    sbi_call(ch as usize, 0, 0, 0, 0, 0, 0, 1);
+    sbi_call(ch as isize, 0, 0, 0, 0, 0, 0, 1);
 }
 
 #[no_mangle]
