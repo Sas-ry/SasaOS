@@ -3,6 +3,11 @@ Homemade OS created on the basis of [writing_os_1000lines](https://operationg-sy
   
 # Required
 * Must use rust's nightly to run  
+```
+rustup install nightly
+rustup override set nightly
+rustup toolchain list
+```
 * Run the following command to add targets against the Rust toolchain
 ```
 rustup target add riscv32i-unknown-none-elf

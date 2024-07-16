@@ -7,7 +7,7 @@ SECTIONS {
     . = 0x80200000;
 
     /* コード領域 */
-    .text :{
+    .text :{ 
         /* 必ず.text.bootセクションを先頭にする */
         KEEP(*(.text.boot));
         *(.text .text.*);
