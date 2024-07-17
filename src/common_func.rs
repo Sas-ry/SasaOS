@@ -1,6 +1,9 @@
 use core::arch::asm;
 use crate::types::*;
 
+use core::fmt::Write;
+use core::fmt::{self, Error};
+
 /* 
 SBIの仕様に沿ってOpenSBIを呼び出すための関数
 呼び出し規約は以下を参考
@@ -42,8 +45,81 @@ sbi_console_getchar()とは異なり、このSBIコールは、送信すべき�
 しかし、コンソールが全く存在しない場合、その文字は捨てられる。
 */
 #[no_mangle]
-pub fn putchar(ch: Uint8T) {
+pub fn putchar(ch: char) {
     sbi_call(ch as isize, 0, 0, 0, 0, 0, 0, 1);
+}
+
+struct SimpleWriter;
+
+impl Write for SimpleWriter {
+    fn write_str(&mut self, s: &str) -> Result<(), Error> {
+        for c in s.chars() {
+            putchar(c);
+        }
+        Ok(())
+    }
+}
+
+pub fn printf_test(fmt: &str, args: &[&str]) {
+    let mut writer = SimpleWriter;
+    let mut arg_index = 0;
+
+    let mut chars = fmt.chars();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            if let Some(next_char) = chars.next() {
+                match next_char {
+                    '%' => {
+                        putchar('%');
+                    }
+                    's' => {
+                        if arg_index < args.len() {
+                            let mut chars = args[arg_index].chars();
+                            while let Some(c) = chars.next() {
+                                putchar(c);
+                            }
+                            arg_index += 1;
+                        }
+                    }
+                    'd' => {
+                        if arg_index < args.len() {
+                            let mut num: i32 = args[arg_index].parse().expect("Failed to parse number");
+                            if num < 0 {
+                                putchar('-');
+                                num = -num;
+                            }
+
+                            let mut divisor = 1;
+                            while num / divisor > 9 {
+                                divisor *= 10;
+                            }
+
+                            while divisor > 0 {
+                                putchar((b'0' + (num / divisor) as u8) as char);
+                                num %= divisor;
+                                divisor /= 10;
+                            }
+                        }
+                    }
+                    'x' => {
+                        if arg_index < args.len() {
+                            let num: i32 = args[arg_index].parse().expect("Failed to parse number");
+                            for i in (0..=7).rev() {
+                                let nibble: i32 = (num >> (i * 4)) & 0xf;
+                                let hex_list: [char; 16] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+                                let c = hex_list[nibble as usize];
+                                putchar(c);
+                            }
+                            arg_index += 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            putchar(c);
+        }
+    }
 }
 
 #[no_mangle]
