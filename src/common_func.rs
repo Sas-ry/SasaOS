@@ -51,17 +51,8 @@ pub fn putchar(ch: char) {
 
 struct SimpleWriter;
 
-impl Write for SimpleWriter {
-    fn write_str(&mut self, s: &str) -> Result<(), Error> {
-        for c in s.chars() {
-            putchar(c);
-        }
-        Ok(())
-    }
-}
-
+#[no_mangle]
 pub fn printf_test(fmt: &str, args: &[&str]) {
-    let mut writer = SimpleWriter;
     let mut arg_index = 0;
 
     let mut chars = fmt.chars();
@@ -123,11 +114,29 @@ pub fn printf_test(fmt: &str, args: &[&str]) {
 }
 
 #[no_mangle]
-pub unsafe fn memset(buf: *mut Uint8T, c: Uint8T, n: SizeT) -> *mut u8 {
+pub fn memset(buf: *mut u8, c: u8, n: usize) -> *mut u8 {
     let mut p = buf;
-    for _ in 0..n {
-        *p = c;
-        p = p.add(1);
+    unsafe {
+        for _ in 0..n {
+            *p = c;
+            p = p.add(1);
+        }
     }
     buf
+}
+
+#[no_mangle]
+fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    unsafe {
+        let mut d = dst;
+        let mut s = src;
+        let mut count = n;
+        while count != 0 {
+            *d = *s;
+            d = d.add(1);
+            s = s.add(1);
+            count -= 1;
+        }
+        dst
+    }
 }
