@@ -3,6 +3,7 @@ use crate::types::*;
 
 use core::fmt::Write;
 use core::fmt::{self, Error};
+use core::ptr;
 
 /* 
 SBIの仕様に沿ってOpenSBIを呼び出すための関数
@@ -126,7 +127,7 @@ pub fn memset(buf: *mut u8, c: u8, n: usize) -> *mut u8 {
 }
 
 #[no_mangle]
-fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+pub fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
     unsafe {
         let mut d = dst;
         let mut s = src;
@@ -139,4 +140,45 @@ fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
         }
         dst
     }
+}
+
+/* 
+    strcpy関数はdstのメモリ領域よりsrcの方が長い時でも、dstのメモリ領域を終えてコピーを行うため、バグや脆弱性に繋がりやすい
+    余力があれば代替関数のstrcpy_sを実装したい
+*/
+#[no_mangle]
+pub fn strcpy(dst: *mut u8, src: *const u8) -> *mut u8 {
+    let mut d = dst;
+    let mut s = src;
+    
+    unsafe {
+        // ソースがヌル文字に到達するまで繰り返す
+        while *s != 0 {
+            // 安全でないポインタ操作を行う
+            ptr::write(d, ptr::read(s));
+            d = d.add(1);
+            s = s.add(1);
+        }
+
+        // 最後にヌル文字を追加
+        ptr::write(d, b'0');
+    }
+    dst
+}
+
+#[no_mangle]
+pub unsafe fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
+    let mut a = s1;
+    let mut b = s2;
+    
+    // 両方のポインタが指す値を比較し、どちらかがヌル文字に達するまで繰り返す
+    while *a != 0 && *b != 0 {
+        if *a != *b {
+            break;
+        }
+        a = a.add(1);
+        b = b.add(1);
+    }
+
+    (*a as i32) - (*b as i32)
 }
