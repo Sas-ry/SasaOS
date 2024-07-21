@@ -1,3 +1,6 @@
+#![no_std]
+#![feature(asm_const)]
+
 use core::arch::asm;
 use crate::types::*;
 
@@ -51,68 +54,6 @@ pub fn putchar(ch: char) {
 }
 
 struct SimpleWriter;
-
-#[no_mangle]
-pub fn printf_test(fmt: &str, args: &[&str]) {
-    let mut arg_index = 0;
-
-    let mut chars = fmt.chars();
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            if let Some(next_char) = chars.next() {
-                match next_char {
-                    '%' => {
-                        putchar('%');
-                    }
-                    's' => {
-                        if arg_index < args.len() {
-                            let mut chars = args[arg_index].chars();
-                            while let Some(c) = chars.next() {
-                                putchar(c);
-                            }
-                            arg_index += 1;
-                        }
-                    }
-                    'd' => {
-                        if arg_index < args.len() {
-                            let mut num: i32 = args[arg_index].parse().expect("Failed to parse number");
-                            if num < 0 {
-                                putchar('-');
-                                num = -num;
-                            }
-
-                            let mut divisor = 1;
-                            while num / divisor > 9 {
-                                divisor *= 10;
-                            }
-
-                            while divisor > 0 {
-                                putchar((b'0' + (num / divisor) as u8) as char);
-                                num %= divisor;
-                                divisor /= 10;
-                            }
-                        }
-                    }
-                    'x' => {
-                        if arg_index < args.len() {
-                            let num: i32 = args[arg_index].parse().expect("Failed to parse number");
-                            for i in (0..=7).rev() {
-                                let nibble: i32 = (num >> (i * 4)) & 0xf;
-                                let hex_list: [char; 16] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-                                let c = hex_list[nibble as usize];
-                                putchar(c);
-                            }
-                            arg_index += 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        } else {
-            putchar(c);
-        }
-    }
-}
 
 #[no_mangle]
 pub fn memset(buf: *mut u8, c: u8, n: usize) -> *mut u8 {
@@ -181,4 +122,19 @@ pub unsafe fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
     }
 
     (*a as i32) - (*b as i32)
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ({
+        use core::fmt::Write;
+        let _ = write!(crate::Writer, $($arg)*);
+    });
+}
+
+#[macro_export]
+macro_rules! println {
+    ($($arg:tt)*) => ({
+        print!("{}\n", format_args!($($arg)*));
+    });
 }
