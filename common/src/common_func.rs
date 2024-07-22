@@ -1,6 +1,3 @@
-#![no_std]
-#![feature(asm_const)]
-
 use core::arch::asm;
 use crate::types::*;
 
@@ -124,6 +121,19 @@ pub unsafe fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
     (*a as i32) - (*b as i32)
 }
 
+
+pub struct Writer;
+
+impl core::fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        let mut chars = s.chars();
+        while let Some(c) = chars.next() {
+            putchar(c)
+        }
+        Ok(())
+    }
+}
+
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ({
@@ -137,4 +147,31 @@ macro_rules! println {
     ($($arg:tt)*) => ({
         print!("{}\n", format_args!($($arg)*));
     });
+}
+
+// CSR を読み書きするマクロ
+#[macro_export]
+macro_rules! read_csr {
+    ($csr:expr) => {
+        unsafe {
+            let mut csrr: u32;
+            asm!(concat!("csrr {r}, ", $csr), r = out(reg) csrr);
+            csrr
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! write_csr {
+    ($reg:expr, $value:expr) => {{
+        unsafe { asm!("csrw {}, {}", const $reg, in(reg) $value) };
+    }};
+}
+
+unsafe extern "C" fn handle_trap(frame: *const TrapFrame) {
+    let scause  = read_csr!("scause");
+    let stval = read_csr!("stval");
+    let user_pc = read_csr!("sepc");
+
+    panic!("unexpected trap scause={:x}, stval={:x}, sepc={:x}", scause, stval, user_pc);
 }
