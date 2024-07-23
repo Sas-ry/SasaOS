@@ -22,11 +22,29 @@ pub extern "C" fn boot() -> ! {
     }
 }
 
+unsafe fn alloc_pages(n: u32) -> Paddr {
+    if NEXT_PADDR == 0 {  // 初期化チェック
+        NEXT_PADDR = __free_ram as usize;
+    } 
+    let paddr = NEXT_PADDR;
+    NEXT_PADDR += (n as usize) * PAGE_SIZE;
+    if NEXT_PADDR > &__free_ram_end as *const u8 as usize {
+        panic!("out of memory");  // メモリ不足でパニック
+    }
+
+    // メモリ領域をゼロ初期化
+    //ptr::write_bytes(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
+    memset(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
+    println!("alloc_pages: {:#x}", paddr);
+    paddr
+}
+
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
-        // common_func::memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
-        println!("Hello,{}!", "World");
+        memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
+        let paddr0 = alloc_pages(1);
+        println!("paddr0: {:#x}", paddr0);
         asm!(
             "csrw sscratch, sp",
             "addi sp, sp, -124",
@@ -124,4 +142,3 @@ unsafe extern "C" fn handle_trap(frame: *const TrapFrame) {
 
     panic!("unexpected trap scause={:x}, stval={:x}, sepc={:x}", scause, stval, user_pc);
 }
-
