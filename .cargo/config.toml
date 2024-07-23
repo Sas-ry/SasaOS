@@ -4,7 +4,7 @@ target = "riscv32i-unknown-none-elf"
 [target.riscv32i-unknown-none-elf]
 linker = "rust-lld"
 rustflags = [
-    "-C", "link-arg=-T./src/kernel.ld"
+    "-C", "link-arg=-Tsrc/kernel.ld"
 ]
 runner = """
 qemu-system-riscv32 \
