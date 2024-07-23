@@ -2,14 +2,14 @@ pub type Paddr = usize;
 pub type Vaddr = usize;
 
 pub const PAGE_SIZE: usize = 4096;
-pub static mut NEXT_PADDR: usize = 0;
+pub static mut NEXT_PADDR: *mut u8 = 0 as *mut u8;
 
 extern "C" {
     pub static mut __bss: u8;
     pub static __bss_end: u8;
     pub static __stack_top: u8;
-    pub static __free_ram: u8;
-    pub static __free_ram_end: u8;
+    pub static mut __free_ram: u8;
+    pub static mut __free_ram_end: u8;
 }
 
 #[repr(C)]
