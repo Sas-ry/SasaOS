@@ -7,6 +7,7 @@ use common::{print, println, read_csr, write_csr };
 use common::types::*;
 
 use core::arch::asm;
+use core::{ptr, str};
 
 #[naked]
 #[no_mangle]
@@ -23,19 +24,19 @@ pub extern "C" fn boot() -> ! {
 }
 
 unsafe fn alloc_pages(n: u32) -> Paddr {
-    if NEXT_PADDR == 0 {  // 初期化チェック
-        NEXT_PADDR = __free_ram as usize;
-    } 
-    let paddr = NEXT_PADDR;
-    NEXT_PADDR += (n as usize) * PAGE_SIZE;
-    if NEXT_PADDR > &__free_ram_end as *const u8 as usize {
+    if NEXT_PADDR == 0 as *mut u8 {  // 初期化チェック
+        NEXT_PADDR = ptr::addr_of_mut!(__free_ram)
+    }
+    let paddr: Paddr = NEXT_PADDR as usize;
+    NEXT_PADDR = NEXT_PADDR.add((n as usize) * PAGE_SIZE);
+
+    if NEXT_PADDR > ptr::addr_of_mut!(__free_ram_end) {
         panic!("out of memory");  // メモリ不足でパニック
     }
 
     // メモリ領域をゼロ初期化
-    //ptr::write_bytes(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
+    // ptr::write_bytes(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
     memset(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
-    println!("alloc_pages: {:#x}", paddr);
     paddr
 }
 
@@ -44,7 +45,7 @@ pub extern "C" fn kernel_main() {
     unsafe {
         memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
         let paddr0 = alloc_pages(1);
-        println!("paddr0: {:#x}", paddr0);
+        println!("paddr0: {:x}", paddr0);
         asm!(
             "csrw sscratch, sp",
             "addi sp, sp, -124",
@@ -141,4 +142,82 @@ unsafe extern "C" fn handle_trap(frame: *const TrapFrame) {
     let user_pc = read_csr!("sepc");
 
     panic!("unexpected trap scause={:x}, stval={:x}, sepc={:x}", scause, stval, user_pc);
+} 
+
+unsafe fn switch_context(prev_sp: u32, next_sp: u32) {
+    asm!(
+        "addi sp, sp, -13 * 4",
+        "sw ra,  0  * 4(sp)",
+        "sw s0,  1  * 4(sp)",
+        "sw s1,  2  * 4(sp)",
+        "sw s2,  3  * 4(sp)",
+        "sw s3,  4  * 4(sp)",
+        "sw s4,  5  * 4(sp)",
+        "sw s5,  6  * 4(sp)",
+        "sw s6,  7  * 4(sp)",
+        "sw s7,  8  * 4(sp)",
+        "sw s8,  9  * 4(sp)",
+        "sw s9,  10 * 4(sp)",
+        "sw s10, 11 * 4(sp)",
+        "sw s11, 12 * 4(sp)",
+        "sw sp, {prev_sp}",
+        "lw sp, {next_sp}",
+        "lw ra,  0  * 4(sp)",
+        "lw s0,  1  * 4(sp)",
+        "lw s1,  2  * 4(sp)",
+        "lw s2,  3  * 4(sp)",
+        "lw s3,  4  * 4(sp)",
+        "lw s4,  5  * 4(sp)",
+        "lw s5,  6  * 4(sp)",
+        "lw s6,  7  * 4(sp)",
+        "lw s7,  8  * 4(sp)",
+        "lw s8,  9  * 4(sp)",
+        "lw s9,  10 * 4(sp)",
+        "lw s10, 11 * 4(sp)",
+        "lw s11, 12 * 4(sp)",
+        "addi sp, sp, 13 * 4",
+        "ret",
+        prev_sp = in(reg) prev_sp,
+        next_sp = in(reg) next_sp,
+        options(noreturn)
+    );
 }
+
+struct ProcessManager {
+    procs: [Process; PROCS_MAX],
+    pub current: usize,
+}
+
+//impl ProcessManager {
+    //fn create_process(pc: u32) -> Process {
+        //unsafe {
+            //let mut process_slot = None;
+            //for i in 0..PROCS_MAX {
+                //if Self::procs[i].state == PROC_UNUSED {
+                    //process_slot = Some(i);
+                    //break;
+                //}
+            //}
+    
+            //let i = process_slot.expect("no free process slots");
+    
+            //let process = &mut PROCS[i];
+            //let mut sp = process.stack.len();
+    
+            //// push registers s11 to s0 and return address
+            //for _ in 0..12 {
+                //sp -= 1;
+                //process.stack[sp] = 0;
+            //}
+            //sp -= 1;
+            //process.stack[sp] = pc;
+    
+            //// Setup process fields
+            //process.pid = i + 1;
+            //process.state = ProcessState::Runnable;
+            //process.sp = sp;
+    
+            //process
+        //}
+    //}
+//}
