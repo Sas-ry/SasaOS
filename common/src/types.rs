@@ -55,9 +55,31 @@ pub struct TrapFrame {
     pub sp: u32,
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum State {
+    UNUSED,
+    RUNNABLE,
+    IDLE,
+    EXITED,
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct Process {
-    pub pid: u8,
-    pub state: u8,
+    pub pid: u32,
+    pub state: State,
     pub sp: Vaddr,
+    pub page_table: Paddr,
     pub stack: [u8; 8192],
+}
+
+impl Process {
+    pub const fn new() -> Self {
+        Self {
+            pid: 0,
+            state: State::UNUSED,
+            sp: 0,
+            page_table: 0,
+            stack: [0; 8192],
+        }
+    }
 }
