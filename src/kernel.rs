@@ -187,37 +187,46 @@ struct ProcessManager {
     procs: [Process; PROCS_MAX],
     pub current: usize,
 }
+impl ProcessManager {
+    pub const fn new() -> Self {
+        let mut pm = Self {
+            procs: [Process::new(); PROCS_MAX],
+            current: 0,
+        };
+        pm.procs[0].state = State::IDLE;
+        pm
+    }
 
-//impl ProcessManager {
-    //fn create_process(pc: u32) -> Process {
-        //unsafe {
-            //let mut process_slot = None;
-            //for i in 0..PROCS_MAX {
-                //if Self::procs[i].state == PROC_UNUSED {
-                    //process_slot = Some(i);
-                    //break;
-                //}
-            //}
-    
-            //let i = process_slot.expect("no free process slots");
-    
-            //let process = &mut PROCS[i];
-            //let mut sp = process.stack.len();
-    
-            //// push registers s11 to s0 and return address
-            //for _ in 0..12 {
-                //sp -= 1;
-                //process.stack[sp] = 0;
-            //}
-            //sp -= 1;
-            //process.stack[sp] = pc;
-    
-            //// Setup process fields
-            //process.pid = i + 1;
-            //process.state = ProcessState::Runnable;
-            //process.sp = sp;
-    
-            //process
-        //}
-    //}
-//}
+    pub fn create(&mut self, image: *const u32, image_size: usize) {
+        unsafe {
+            if let Some((i, proc)) = self
+                .procs
+                .iter_mut()
+                .enumerate()
+                .find(|(_, p)| p.state == State::UNUSED)
+            {
+                let stack = ptr::addr_of_mut!(proc.stack) as *mut u32;
+                let sp = stack.add(proc.stack.len());
+                *sp.offset(-1) = 0; // s11
+                *sp.offset(-2) = 0; // s10
+                *sp.offset(-3) = 0; // s9
+                *sp.offset(-4) = 0; // s8
+                *sp.offset(-5) = 0; // s7
+                *sp.offset(-6) = 0; // s6
+                *sp.offset(-7) = 0; // s5
+                *sp.offset(-8) = 0; // s4
+                *sp.offset(-9) = 0; // s3
+                *sp.offset(-10) = 0; // s2
+                *sp.offset(-11) = 0; // s1
+                *sp.offset(-12) = 0; // s0
+                *sp.offset(-13) = boot as u32; // ra
+
+                proc.pid = i as u32;
+                proc.state = State::RUNNABLE;
+                proc.sp = sp.offset(-13) as Vaddr;
+            } else {
+                panic!("no free process slots");
+            }
+        }
+    }
+}
