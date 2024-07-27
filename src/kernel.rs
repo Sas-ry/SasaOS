@@ -40,15 +40,12 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
     paddr
 }
 
-static mut PROC_A: ProcessManager = ProcessManager::new();
-static mut PROC_B: ProcessManager = ProcessManager::new();
+
 
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
         memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
-        proc_a_entry();
-        proc_b_entry();
         asm!(
             "csrw sscratch, sp",
             "addi sp, sp, -124",
@@ -147,7 +144,7 @@ unsafe extern "C" fn handle_trap(frame: *const TrapFrame) {
     panic!("unexpected trap scause={:x}, stval={:x}, sepc={:x}", scause, stval, user_pc);
 } 
 
-unsafe fn switch_context(prev_sp: u32, next_sp: u32) {
+unsafe fn switch_context(prev_sp: *mut usize, next_sp: *const usize) {
     asm!(
         "addi sp, sp, -13 * 4",
         "sw ra,  0  * 4(sp)",
@@ -186,11 +183,13 @@ unsafe fn switch_context(prev_sp: u32, next_sp: u32) {
 
 struct ProcessManager {
     procs: [Process; PROCS_MAX],
+    pub current: usize,
 }
 impl ProcessManager {
     pub const fn new() -> Self {
         let mut pm = Self {
             procs: [Process::new(); PROCS_MAX],
+            current: 0,
         };
         pm.procs[0].state = State::IDLE;
         pm
@@ -228,38 +227,29 @@ impl ProcessManager {
             }
         }
     }
-}
 
-
-fn proc_a_entry() {
-    println!("starting process A\n");
-    loop {
-        putchar('A');
-        println!("\n");
-        unsafe {
-            switch_context(PROC_A.procs[0].sp as u32, PROC_B.procs[1].sp as u32);
-            let mut i = 0;
-            while i < 300000000 {
-                asm!("nop");
-                i += 1;
+    pub fn yield_proc(&mut self) {
+        let mut next: usize = 0;
+        for i in 0..PROCS_MAX {
+            let idx = (self.current + i + 1) % PROCS_MAX;
+            let proc = &self.procs[idx];
+            if proc.state == State::RUNNABLE {
+                next = idx;
+                break;
             }
         }
-        
-    }
-}
-fn proc_b_entry() {
-    println!("starting process B\n");
-    loop {
-        putchar('B');
-        println!("\n");
-        unsafe {
-            switch_context(PROC_B.procs[1].sp as u32, PROC_A.procs[0].sp as u32);
-            let mut i = 0;
-            while i < 300000000 {
-                asm!("nop");
-                i += 1;
-            }
+
+        if next == self.current {
+            return;
         }
-        
+
+        let prev = self.current;
+        self.current = next;
+        unsafe {
+            switch_context(&mut self.procs[prev].sp, &self.procs[next].sp);
+        }
     }
 }
+
+static mut CURRENT_PROC: ProcessManager = ProcessManager::new();
+static mut IDLE_PROC: ProcessManager = ProcessManager::new();
