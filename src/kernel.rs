@@ -40,12 +40,16 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
     paddr
 }
 
-
+static mut PROC_A : ProcessManager = ProcessManager::new();
+static mut CURRENT_PROC: ProcessManager = ProcessManager::new();
+static mut IDLE_PROC: ProcessManager = ProcessManager::new();
 
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
         memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
+        println!("\n\n");
+        panic!("kernel_main");
         asm!(
             "csrw sscratch, sp",
             "addi sp, sp, -124",
@@ -181,6 +185,27 @@ unsafe fn switch_context(prev_sp: *mut usize, next_sp: *const usize) {
     );
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct Process {
+    pub pid: u32,
+    pub state: State,
+    pub sp: Vaddr,
+    pub page_table: Paddr,
+    pub stack: [u8; 8192],
+}
+
+impl Process {
+    pub const fn new() -> Self {
+        Self {
+            pid: 0,
+            state: State::UNUSED,
+            sp: 0,
+            page_table: 0,
+            stack: [0; 8192],
+        }
+    }
+}
+
 struct ProcessManager {
     procs: [Process; PROCS_MAX],
     pub current: usize,
@@ -251,5 +276,3 @@ impl ProcessManager {
     }
 }
 
-static mut CURRENT_PROC: ProcessManager = ProcessManager::new();
-static mut IDLE_PROC: ProcessManager = ProcessManager::new();
