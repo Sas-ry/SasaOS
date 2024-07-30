@@ -7,7 +7,9 @@ use common::{print, println, read_csr, write_csr };
 use common::types::*;
 
 use core::arch::asm;
+use core::ops::Index;
 use core::{ptr, str};
+use core::ptr::addr_of;
 
 #[naked]
 #[no_mangle]
@@ -41,15 +43,21 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
 }
 
 static mut PROCS: [Process; PROCS_MAX] = [Process::new(); PROCS_MAX];
+static mut IDLE_PROC : Process = Process::new();
+static mut CURRENT_PROC: Process = Process::new();
+//static mut CURRENT_PROC: *const Process = addr_of!(IDLE_PROC);
 
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
         memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
         println!("\n\n");
-        PROCS[0].create_process(proc_a_entry as u32);
-        PROCS[1].create_process(proc_b_entry as u32);
-        proc_a_entry();
+        IDLE_PROC.create_process(None);
+        println!("IDLE_PROC:{}", IDLE_PROC.pid);
+        CURRENT_PROC = IDLE_PROC;
+        PROCS[0].create_process(Some(proc_a_entry as u32));
+        PROCS[1].create_process(Some(proc_b_entry as u32));
+        yield_proc();
         panic!("kernel_main");
         asm!(
             "csrw sscratch, sp",
@@ -188,7 +196,7 @@ unsafe fn switch_context(prev_sp: *const usize, next_sp: *const usize) {
 
 #[derive(Copy, Clone, Debug)]
 pub struct Process {
-    pub pid: u32,
+    pub pid: usize,
     pub state: State,
     pub sp: Vaddr,
     pub stack: [u8; 8192],
@@ -204,7 +212,7 @@ impl Process {
         }
     }
 
-    pub fn create_process(&mut self, pc: u32) -> &mut Process {
+    pub fn create_process(&mut self, pc: Option<u32>) -> &mut Process {
         unsafe {
             let mut proc: usize = 0;
             for i in 0..PROCS_MAX {
@@ -217,38 +225,105 @@ impl Process {
             if (proc == 0) {
                 panic!("no free process slots");
             }
-            let set_proc = &mut PROCS[proc - 1];
-            let stack = ptr::addr_of_mut!(set_proc.stack) as *mut u32;
-            let sp = stack.add(set_proc.stack.len());
-            *sp.offset(-1) = 0; // s11
-            *sp.offset(-2) = 0; // s10
-            *sp.offset(-3) = 0; // s9
-            *sp.offset(-4) = 0; // s8
-            *sp.offset(-5) = 0; // s7
-            *sp.offset(-6) = 0; // s6
-            *sp.offset(-7) = 0; // s5
-            *sp.offset(-8) = 0; // s4
-            *sp.offset(-9) = 0; // s3
-            *sp.offset(-10) = 0; // s2
-            *sp.offset(-11) = 0; // s1
-            *sp.offset(-12) = 0; // s0
-            *sp.offset(-13) = pc; // ra
-
-            set_proc.pid = (proc - 1) as u32;
-            set_proc.state = State::RUNNABLE;
-            set_proc.sp = sp.offset(-13) as Vaddr;
-            set_proc
+            match pc {
+                Some(pc) => {
+                    let set_proc = &mut PROCS[proc - 1];
+                    let stack = ptr::addr_of_mut!(set_proc.stack) as *mut u32;
+                    let sp = stack.add(set_proc.stack.len());
+                    
+                    *sp.offset(-1) = 0; // s11
+                    *sp.offset(-2) = 0; // s10
+                    *sp.offset(-3) = 0; // s9
+                    *sp.offset(-4) = 0; // s8
+                    *sp.offset(-5) = 0; // s7
+                    *sp.offset(-6) = 0; // s6
+                    *sp.offset(-7) = 0; // s5
+                    *sp.offset(-8) = 0; // s4
+                    *sp.offset(-9) = 0; // s3
+                    *sp.offset(-10) = 0; // s2
+                    *sp.offset(-11) = 0; // s1
+                    *sp.offset(-12) = 0; // s0
+                    *sp.offset(-13) = pc; // ra
+                    set_proc.pid = (proc - 1) as usize;
+                    set_proc.state = State::RUNNABLE;
+                    set_proc.sp = sp.offset(-13) as Vaddr;
+                    set_proc
+                } 
+                None => {
+                    let stack = ptr::addr_of_mut!(IDLE_PROC.stack) as *mut u32;
+                    let sp = stack.add(IDLE_PROC.stack.len());
+                    
+                    *sp.offset(-1) = 0; // s11
+                    *sp.offset(-2) = 0; // s10
+                    *sp.offset(-3) = 0; // s9
+                    *sp.offset(-4) = 0; // s8
+                    *sp.offset(-5) = 0; // s7
+                    *sp.offset(-6) = 0; // s6
+                    *sp.offset(-7) = 0; // s5
+                    *sp.offset(-8) = 0; // s4
+                    *sp.offset(-9) = 0; // s3
+                    *sp.offset(-10) = 0; // s2
+                    *sp.offset(-11) = 0; // s1
+                    *sp.offset(-12) = 0; // s0
+                    *sp.offset(-13) = 0; // ra
+                    IDLE_PROC.pid = u32::MAX as usize;
+                    IDLE_PROC.state = State::IDLE;
+                    IDLE_PROC.sp = sp.offset(-13) as Vaddr;
+                    &mut IDLE_PROC
+                }
+            }
         }
     }
 }
 
+pub fn yield_proc() {
+    unsafe {
+        //let mut next: &Process = &IDLE_PROC;
+        let tmp_proc = Process::new();
+        let mut next: &Process = &tmp_proc;
+        println!("before:{}", CURRENT_PROC.pid);
+        for i in 0..PROCS_MAX {
+            let idx: usize;
+            if CURRENT_PROC.pid == u32::MAX as usize{
+                idx = i;
+                println!("idle_i:{}", i);
+            } else {
+                idx = (CURRENT_PROC.pid + i + 1) % PROCS_MAX;
+                println!("i:{}", idx);
+            }
+            let proc = &PROCS[idx as usize];
+            println!("state:{:?}",proc.state);
+            println!("proc_pid:{:?}",proc.pid);
+            if (proc.state == State::RUNNABLE) {
+                //next = *proc;
+                next = &proc;
+                //println!("after:{}", next.pid);
+                break;
+            }
+        }
+
+        //if next.pid == CURRENT_PROC.pid {
+        if next.pid == CURRENT_PROC.pid {
+            println!("return");
+            return;
+        }
+        let prev = CURRENT_PROC;
+        //println!("next:{}", next.pid);
+        CURRENT_PROC = *next;
+        if next.pid == u32::MAX as usize {
+            panic!("idle");
+        }
+        switch_context(&prev.sp, &next.sp);
+    }
+}
 
 pub fn proc_a_entry() {
     println!("proc_a_entry\n");
     loop {
         unsafe {
             putchar('A');
-            switch_context(&PROCS[0].sp, &PROCS[1].sp);
+            //switch_context(&PROCS[0].sp, &PROCS[1].sp);
+            yield_proc();
             for i in 0..30000000 {
                 asm!("nop");
             }
@@ -260,7 +335,8 @@ pub fn proc_b_entry() {
     loop {
         unsafe {
             putchar('B');
-            switch_context(&PROCS[1].sp, &PROCS[0].sp);
+            //switch_context(&PROCS[1].sp, &PROCS[0].sp);
+            yield_proc();
             for i in 0..30000000 {
                 asm!("nop");
             }
