@@ -91,6 +91,9 @@ pub extern "C" fn kernel_main() {
             "csrr a0, sscratch",
             "sw a0, 120(sp)",
 
+            "addi a0, sp, 124",
+            "csrw ssratch, a0",
+
             "mv a0, sp",
             "call {handle_trap}",
 
@@ -325,6 +328,12 @@ impl Process_Controler {
             if self.current_idx == idx {
                 return;
             }
+            let stack = ptr::addr_of_mut!(self.procs[idx].stack) as *mut u32;
+            let sscratch = stack.add(self.procs[idx].stack.len());
+            asm!(
+                "csrw sscratch, {sscratch}",
+                sscratch = in(reg) sscratch,
+            );
             let bef_idx = self.current_idx;
             self.current_idx = idx;
             switch_context(&mut self.procs[bef_idx].sp, &self.procs[idx].sp);

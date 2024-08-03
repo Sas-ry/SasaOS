@@ -168,6 +168,13 @@ macro_rules! write_csr {
     }};
 }
 
+#[macro_export]
+macro_rules! is_aligned {
+    ($addr:expr, $align:expr) => {
+        $align.is_power_of_two() && ( $addr % $align == 0 )
+    };
+}
+
 unsafe extern "C" fn handle_trap(frame: *const TrapFrame) {
     let scause  = read_csr!("scause");
     let stval = read_csr!("stval");
