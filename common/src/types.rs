@@ -1,7 +1,7 @@
 pub type Paddr = usize;
 pub type Vaddr = usize;
 
-pub const PAGE_SIZE: usize = 4096;
+pub const PAGE_SIZE: u32 = 4096;
 pub const PROCS_MAX: usize = 8;
 pub static mut PROC_UNUSED: u8 = 0;
 pub static mut PROC_RUNNABLE: u8 = 1;
