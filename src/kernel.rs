@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(naked_functions)]
 
-use common::common_func::*;
+use common::{common_func::*, is_aligned};
 use common::{print, println, read_csr, write_csr };
 use common::types::*;
 
@@ -10,6 +10,7 @@ use core::arch::asm;
 use core::ops::Index;
 use core::{ptr, str};
 use core::ptr::addr_of;
+use core::slice;
 
 #[naked]
 #[no_mangle]
@@ -30,7 +31,7 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
         NEXT_PADDR = ptr::addr_of_mut!(__free_ram)
     }
     let paddr: Paddr = NEXT_PADDR as usize;
-    NEXT_PADDR = NEXT_PADDR.add((n as usize) * PAGE_SIZE);
+    NEXT_PADDR = NEXT_PADDR.add((n * PAGE_SIZE) as usize);
 
     if NEXT_PADDR > ptr::addr_of_mut!(__free_ram_end) {
         panic!("out of memory");  // メモリ不足でパニック
@@ -38,7 +39,7 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
 
     // メモリ領域をゼロ初期化
     // ptr::write_bytes(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
-    memset(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
+    memset(paddr as *mut u8, 0, (n * PAGE_SIZE) as usize);
     paddr
 }
 
@@ -338,5 +339,27 @@ impl Process_Controler {
             self.current_idx = idx;
             switch_context(&mut self.procs[bef_idx].sp, &self.procs[idx].sp);
         }
+    }
+}
+
+fn map_page(table1: &mut [u32], vaddr: u32, paddr: Paddr, flags: u32) {
+    if !is_aligned!(vaddr, PAGE_SIZE) {
+        panic!("unaligned vadd {}", vaddr);
+    }
+
+    if !is_aligned!(paddr, (PAGE_SIZE as usize)) {
+        panic!("unaligned paddr {}", paddr);
+    }
+    unsafe {
+        let vpn1 = (vaddr >> 22) & 0x3ff;
+        if table1[vpn1 as usize] & (1 << 0) == 0 {
+            let pt_paddr = alloc_pages(1);
+            table1[vpn1 as usize] = ((pt_paddr as u32 / PAGE_SIZE << 10)) | (1 << 0) ;
+        }
+
+        let vpn0 = (vaddr >> 12) & 0x3ff;
+        let table0_ptr = ((table1[vpn1 as usize] >> 10) * PAGE_SIZE as u32) as *mut u32;
+        let table0 = slice::from_raw_parts_mut(table0_ptr, 1024); 
+        table0[vpn0 as usize] = ((paddr as u32) / PAGE_SIZE << 10) | flags | (1 << 0);
     }
 }
