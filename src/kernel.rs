@@ -200,6 +200,7 @@ pub struct Process {
     pub pid: usize,
     pub state: State,
     pub sp: Vaddr,
+    pub page_table: Paddr,
     pub stack: [u8; 8192],
 }
 
@@ -209,6 +210,7 @@ impl Process {
             pid: 0,
             state: State::UNUSED,
             sp: 0,
+            page_table: 0,
             stack: [0; 8192],
         }
     }
@@ -309,9 +311,20 @@ impl Process_Controler {
             *sp.offset(-11) = 0; // s1
             *sp.offset(-12) = 0; // s0
             *sp.offset(-13) = pc; // ra
+
+            let page_table = alloc_pages(1);
+            let mut paddr = __kernel_base;
+            for i in paddr..__free_ram_end {
+                if paddr < __free_ram_end {
+                    paddr += PAGE_SIZE as u8;
+                    map_page(page_table as u32, paddr as u32, paddr as usize, (1 << 1) | (1 << 2) | (1 << 3));
+                }
+                
+            }
             set_proc.pid = proc as usize;
             set_proc.state = State::RUNNABLE;
             set_proc.sp = sp.offset(-13) as Vaddr;
+            set_proc.page_table = page_table;
         }
     }
 
@@ -342,7 +355,7 @@ impl Process_Controler {
     }
 }
 
-fn map_page(table1: &mut [u32], vaddr: u32, paddr: Paddr, flags: u32) {
+fn map_page(table1: u32, vaddr: u32, paddr: Paddr, flags: u32) {
     if !is_aligned!(vaddr, PAGE_SIZE) {
         panic!("unaligned vadd {}", vaddr);
     }
@@ -351,15 +364,15 @@ fn map_page(table1: &mut [u32], vaddr: u32, paddr: Paddr, flags: u32) {
         panic!("unaligned paddr {}", paddr);
     }
     unsafe {
-        let vpn1 = (vaddr >> 22) & 0x3ff;
-        if table1[vpn1 as usize] & (1 << 0) == 0 {
+        let table1 = table1 as *mut u32;
+        let vpn1 = ((vaddr >> 22) & 0x3ff) as isize;
+        if (*table1.offset(vpn1) & (1 << 0)) == 0 {
             let pt_paddr = alloc_pages(1);
-            table1[vpn1 as usize] = ((pt_paddr as u32 / PAGE_SIZE << 10)) | (1 << 0) ;
+            *table1.offset(vpn1) = (((pt_paddr / PAGE_SIZE as usize) << 10) | (1 << 0)) as u32;
         }
 
-        let vpn0 = (vaddr >> 12) & 0x3ff;
-        let table0_ptr = ((table1[vpn1 as usize] >> 10) * PAGE_SIZE as u32) as *mut u32;
-        let table0 = slice::from_raw_parts_mut(table0_ptr, 1024); 
-        table0[vpn0 as usize] = ((paddr as u32) / PAGE_SIZE << 10) | flags | (1 << 0);
+        let vpn0 = ((vaddr >> 12) & 0x3ff) as isize;
+        let table0 = ((*table1.offset(vpn1) >> 10) * PAGE_SIZE) as *mut u32;
+        *(table0.offset(vpn0)) = (((paddr /PAGE_SIZE as usize) << 10) | flags as usize | (1 << 0)) as u32;
     }
 }
