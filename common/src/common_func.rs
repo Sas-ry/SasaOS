@@ -53,7 +53,7 @@ pub fn putchar(ch: char) {
 struct SimpleWriter;
 
 #[no_mangle]
-pub fn memset(buf: *mut u8, c: u8, n: usize) -> *mut u8 {
+pub fn memset(buf: *mut u32, c: u32, n: usize) -> *mut u32 {
     let mut p = buf;
     unsafe {
         for _ in 0..n {

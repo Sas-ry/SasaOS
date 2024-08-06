@@ -5,15 +5,15 @@ pub const PAGE_SIZE: u32 = 4096;
 pub const PROCS_MAX: usize = 8;
 pub static mut PROC_UNUSED: u8 = 0;
 pub static mut PROC_RUNNABLE: u8 = 1;
-pub static mut NEXT_PADDR: *mut u8 = 0 as *mut u8;
+pub static mut NEXT_PADDR: *mut u32 = 0 as *mut u32;
 
 extern "C" {
-    pub static mut __bss: u8;
-    pub static __bss_end: u8;
-    pub static __stack_top: u8;
-    pub static mut __free_ram: u8;
-    pub static mut __free_ram_end: u8;
-    pub static mut __kernel_base: u8;
+    pub static mut __bss: u32;
+    pub static __bss_end: u32;
+    pub static __stack_top: u32;
+    pub static mut __free_ram: u32;
+    pub static mut __free_ram_end: u32;
+    pub static mut __kernel_base: u32;
 }
 
 #[repr(C)]
