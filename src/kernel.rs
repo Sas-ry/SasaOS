@@ -27,8 +27,9 @@ pub extern "C" fn boot() -> ! {
 }
 
 unsafe fn alloc_pages(n: u32) -> Paddr {
-    if NEXT_PADDR == 0 as *mut u8 {  // 初期化チェック
-        NEXT_PADDR = ptr::addr_of_mut!(__free_ram)
+    if NEXT_PADDR == 0 as *mut u32 {  // 初期化チェック
+        let mut free_ram = __free_ram as u32;
+        NEXT_PADDR = ptr::addr_of_mut!(free_ram);
     }
     let paddr: Paddr = NEXT_PADDR as usize;
     NEXT_PADDR = NEXT_PADDR.add((n * PAGE_SIZE) as usize);
@@ -39,7 +40,7 @@ unsafe fn alloc_pages(n: u32) -> Paddr {
 
     // メモリ領域をゼロ初期化
     // ptr::write_bytes(paddr as *mut u8, 0, (n as usize) * PAGE_SIZE);
-    memset(paddr as *mut u8, 0, (n * PAGE_SIZE) as usize);
+    memset(paddr as *mut u32, 0, (n * PAGE_SIZE) as usize);
     paddr
 }
 
@@ -48,7 +49,7 @@ static mut PROCCESS_CONTROLER: Process_Controler = Process_Controler::new();
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
-        memset(&mut __bss as *mut u8, 0, &__bss_end as *const u8 as usize - &__bss as *const u8 as usize);
+        memset(&mut __bss, 0, (&__bss_end - &__bss) as usize);
         println!("\n\n");
         PROCCESS_CONTROLER.process_init();
         PROCCESS_CONTROLER.create_process(proc_a_entry as u32);
@@ -313,10 +314,12 @@ impl Process_Controler {
             *sp.offset(-13) = pc; // ra
 
             let page_table = alloc_pages(1);
-            let mut paddr = __kernel_base;
-            for i in paddr..__free_ram_end {
+            let mut paddr: u32 = __kernel_base;
+            for i in 0..__free_ram_end {
+                println!("test:{}", i);
                 if paddr < __free_ram_end {
-                    paddr += PAGE_SIZE as u8;
+                    paddr += PAGE_SIZE;
+                    println!("test:{}", i);
                     map_page(page_table as u32, paddr as u32, paddr as usize, (1 << 1) | (1 << 2) | (1 << 3));
                 }
                 
@@ -344,8 +347,13 @@ impl Process_Controler {
             }
             let stack = ptr::addr_of_mut!(self.procs[idx].stack) as *mut u32;
             let sscratch = stack.add(self.procs[idx].stack.len());
+            let satp = (1 << 31) | ((self.procs[idx].page_table / (PAGE_SIZE as usize)));
             asm!(
+                "sfence.vma",
+                "csrw satp, {satp}",
+                "sfence.vma",
                 "csrw sscratch, {sscratch}",
+                satp = in(reg) satp, 
                 sscratch = in(reg) sscratch,
             );
             let bef_idx = self.current_idx;
