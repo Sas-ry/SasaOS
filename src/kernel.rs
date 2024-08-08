@@ -49,7 +49,10 @@ static mut PROCCESS_CONTROLER: Process_Controler = Process_Controler::new();
 #[no_mangle]
 pub extern "C" fn kernel_main() {
     unsafe {
-        memset(&mut __bss, 0, (&__bss_end - &__bss) as usize);
+        //memset(&mut __bss, 0, (&__bss_end - &__bss) as usize);
+        let bss = ptr::addr_of_mut!(__bss);
+        let bss_end = ptr::addr_of!(__bss_end);
+        ptr::write_bytes(bss, 0, bss_end as usize - bss as usize);
         println!("\n\n");
         PROCCESS_CONTROLER.process_init();
         PROCCESS_CONTROLER.create_process(proc_a_entry as u32);
@@ -260,6 +263,7 @@ impl Process_Controler {
     }
 
     pub fn process_init(&mut self) {
+        println!("start process_init\n");
         unsafe {
             self.procs[0].state = State::IDLE;
             self.procs[0].pid = u32::MAX as usize;
@@ -281,6 +285,7 @@ impl Process_Controler {
             *sp.offset(-13) = 0; // ra
             self.procs[0].sp = sp.offset(-13) as Vaddr;
         }
+        println!("end process_init\n");
     }
 
     pub fn create_process(&mut self, pc: u32) {
@@ -321,6 +326,8 @@ impl Process_Controler {
                     paddr += PAGE_SIZE;
                     println!("test:{}", i);
                     map_page(page_table as u32, paddr as u32, paddr as usize, (1 << 1) | (1 << 2) | (1 << 3));
+                } else {
+                    break;
                 }
                 
             }
